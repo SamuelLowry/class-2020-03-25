@@ -14,7 +14,7 @@ load("nes.rda")
 
 x <- nes %>% 
   as_tibble() %>% 
-  select(year, dvote, partyid7, real_ideo, race_adj, 
+  select(year, dvote, rvote, partyid7, real_ideo, race_adj, 
          age_discrete, educ1, female, income) %>% 
   drop_na() %>% 
   mutate(gender = as.factor(ifelse(female == 1, "female", "non-female"))) %>% 
@@ -22,6 +22,8 @@ x <- nes %>%
                                     race_adj == 2 ~ "Black",
                                     TRUE ~ "Other"))) %>% 
   select(-female, -race_adj)
+
+glimpse(nes)
 ```
 
 
@@ -34,21 +36,65 @@ x <- nes %>%
 
 **Prompt:** Let's try to understand things which are associated with `dvote`, which is (claiming to have cast) a vote for the Democratic candidate for President. Estimate two models (`z_old` and `z_stan`) which uses `gender` to explain `dvote`. `z_old` uses the standard `glm()` command. `z_stan()` uses `stan_glm()`. Interpret the results from both printing the simple model objects and for running `summary()` on them.
 
+```{r}
+z_old <- glm(dvote ~ gender, data = x, family = binomial)
+
+z_stan <- stan_glm(dvote ~ gender, data = x, refresh = FALSE, family = binomial)
+
+summary(z_old, digits = 3)
+summary(z_stan, digits = 3)
+```
+
+
 # Scene 3
 
 **Prompt:** For females, the intercept is -0.1. What does that mean? For men, it is -0.1 + (-0.2) = -0.3. What is the substance meaning of -0.1 and -0.3? 
+
+```{r}
+plogis(-.143)
+
+plogis(-.143 - .222)
+```
+
+use plogis (inverse log) leads to percent they would vote democrat. expected difference 
+
 
 # Scene 4
 
 **Prompt:** Let's look more closely at the coefficent on `non-female`. Interpret what it means. Can you put its magnitude onto the same scale as the outcome? That is, what I really want to know iw how much more (less?) likely men are to vote for the Democrat than women.  (Don't forget the divide-by-4 rule.) Now, just using simple dplyr commands, confirm that this is, in fact, the case in the raw data.
 
+.22/4 = .055
+There is a no more than 5.5% positive difference in the probability of men being likely to vote democrat 
+
+```{r}
+x %>% 
+  group_by(gender) %>% 
+  summarize(dvote = sum(dvote), all = n()) %>% 
+  mutate(per = dvote/all)
+```
+
 # Scene 5
 
 **Prompt:** We have a model. Cool! Assume that we have new "data", a tibble with one row and one variable, `gender`, which is "female". What is the probability that this new person for vote Democratic?
 
+```{r}
+new_data <- tibble(gender = "female")
+
+predict(z_old, newdata = new_data, type = "response")
+```
+
+It is just what we had above for all females ~ 46%
+
 # Scene 6
 
 **Prompt:** So, with rstanarm models, at least, `predict()` doesn't (ever?) work. Instead, we need to use `posterior_linpred()`. But it sure is confusing! Continuing with our simple case of one new female observation, use `posterior_linpred()`, understand its outputs, and the provide a graphical display of those outputs. (Hint: Check the class of the output. It isn't a tibble!)
+
+```{r}
+six <- posterior_linpred(object = z_stan, newdata = new_data)
+
+hist(six)
+```
+
 
 # Scene 7
 
